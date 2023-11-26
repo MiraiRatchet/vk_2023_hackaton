@@ -30,6 +30,12 @@ class Server:
             method = data['method']
             reqv = request(parametrs, method)
 
+        except Exception:
+            return bytes(json.dumps({
+                "content": "Bad Request",
+                "status": 400,
+            }), "utf-8")
+        try:
             unique_path = (path, frozenset(parametrs))
             if (unique_path in self.urls_paths and
                     method in self.urls_paths[unique_path]):
@@ -37,20 +43,19 @@ class Server:
             else:
                 response_content = self.urls_paths[(
                     path, frozenset({}))][method](reqv)
-            response_status = 200
-
-            response = {
-                "content": response_content,
-                "status": response_status,
-            }
-
-            return bytes(json.dumps(response), "utf-8")
-
         except Exception:
             return bytes(json.dumps({
-                "content": "Bad Request",
-                "status": 400,
+                "content": "Not Found",
+                "status": 404,
             }), "utf-8")
+
+        response_status = 200
+        response = {
+            "content": response_content,
+            "status": response_status,
+        }
+
+        return bytes(json.dumps(response), "utf-8")
 
     def route(self, url: str, methods: list[str]):
         path, _, parametrs = url.rpartition('/')
@@ -110,8 +115,23 @@ class Server:
 #     return "____PATCH"
 
 
+# @server.route("/self/", methods=["post"])
+# def test_sdsds(reqv: request):
+#     return "____POST_empty"
+
+
 # print(server.handle_reqv(bytes(json.dumps({
-#     "url": "/self?usernasme=petya",
+#     "url": "? ? ?",
 #     "method": "post",
-# }), "utf-8"))
-# )
+# }), "utf-8")))  # b'{"content": "Bad Request", "status": 400}'
+
+# print(server.handle_reqv(bytes(json.dumps({
+#     "url": "/self?userpassword=HEHEHEHEEHEH",
+#     "method": "get",
+# }), "utf-8")))  # b'{"content": "Not Found", "status": 404}'
+
+
+# print(server.handle_reqv(bytes(json.dumps({
+#     "url": "/self?username=HAHAHHAHA",
+#     "method": "get",
+# }), "utf-8")))  # b'{"content": "AHAHHAHAH____GET", "status": 200}'
