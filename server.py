@@ -1,4 +1,4 @@
-from multiprocessing import Queue, Pipe, Value, Process, cpu_count, Lock
+from multiprocessing import Process, cpu_count, Lock, Queue
 from socket import (
     socket,
     AF_INET,
@@ -22,13 +22,11 @@ class TreadWorker(Thread):
     Воркер, в своём потоке запускает маршрутизатор.
     """
     def __init__(self, conn, request):
-        print('Thread')
         super().__init__()
         self.conn = conn
         self.request = request
 
     def run(self):
-        print('Thread run')
         res = b''
         try:
             res = router(self.request)  # bytes
@@ -44,20 +42,20 @@ class CPUWorker(Process):
     Воркер для каждого нового TCP соединения.
     """
     def __init__(self, global_request_queue):
-        print('CPU')
         super().__init__()
         self.request_queue = global_request_queue
 
     def run(self):
-        print('CPU run')
         try:
             while True:
-                for (conn, request) in iter(self.request_queue.get, None):
-                    print('CPU conn receive')
-                    TreadWorker(
-                        conn,
-                        request,
-                    ).start()
+                data = self.request_queue.get()
+                if data is None:
+                    break
+                (conn, request) = data
+                TreadWorker(
+                    conn,
+                    request,
+                ).start()
 
         except (timeout, error):
             pass
@@ -69,7 +67,6 @@ class Server:
     """
 
     def __init__(self, host = 'localhost', port=8080, workers_num: int = cpu_count()):
-        print(f'{host=}, {port=}, {workers_num=}')
         if not isinstance(workers_num, int) or workers_num < 1:
             raise ValueError('workers_num be more than 0')
         self.host = host
@@ -98,8 +95,6 @@ class Server:
         queue: Queue,
         lock
     ):
-        print('listening conncection')
-    
         request = b''
         while True:
             data = conn.recv(1024)
@@ -110,12 +105,9 @@ class Server:
             conn.close()
             return
 
-        print('Got connection')
-        with lock:
-            queue.put((
-                conn, request
-            ))
-        print("Request is in place")
+        queue.put((
+            conn, request
+        ))
 
     def start(self):
         """
@@ -131,12 +123,12 @@ class Server:
         for _ in range(self.workers_num):
             CPUWorker(
                 self.requests_queue,
-            )
+            ).start()
 
         try:
             while True:
                 conn, _ = self.server_socket.accept()
-                print('Conn')
+
                 Server.__handle_client(
                     conn, 
                     self.requests_queue,
@@ -152,5 +144,5 @@ class Server:
 
 
 if __name__ == '__main__':
-    server = Server()
+    server = Server(workers_num=1)
     asyncio.run(server.start())
