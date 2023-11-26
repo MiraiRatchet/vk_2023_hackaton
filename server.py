@@ -95,11 +95,15 @@ class Server:
         queue: Queue,
         lock
     ):
+        message_len = 1024
         request = b''
         while True:
-            data = conn.recv(1024)
+            data = conn.recv(message_len)
             request += data
-            break
+            
+            if not data or len(data) < message_len:
+                break
+
 
         if not request:
             conn.close()
