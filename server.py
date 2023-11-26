@@ -37,6 +37,7 @@ class Server:
                     for (conn, request) in iter(self.request_queue.get, None):
                         res = router(request)
                         conn.send(res)
+                        conn.close()
 
             except (timeout, error):
                 pass
