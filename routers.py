@@ -1,57 +1,117 @@
 from typing import Callable
 
-from json import loads
+import json
 
 
 class request:
-    __arguments: dict[str, str]
+    def __init__(self, params: list[str], method: str):
+        self.params = params
+        self.method = method
 
-    @classmethod
-    def get_argument(cls, argument: str):
-        return cls.__arguments[argument]
+    def get_argument(self, param: str) -> str:
+        return self.params[param]
 
-    @classmethod
-    def __set_argument(cls, argument: str, value: str):
-        cls.__arguments[argument] = value
-
-    @classmethod
-    def parse_data(cls, data_bytes: bytes) -> dict:
-        data_json = loads(data_bytes)
-        return data_json
+    def get_method(self) -> str:
+        return self.method
 
 
 class Server:
-    urls_paths: dict[tuple(str, frozenset[str]),
-                     dict[str, Callable[[bytes], bytes]]]
+    urls_paths: dict[tuple[str, frozenset[str]],
+                     dict[str, Callable[[bytes], bytes]]] = {}
 
-    def handle_reqv(self, data: bytes) -> bytes:
-        request.parse_data(data)
-        # data
-        # urls_paths[]()
-        return ...
+    def handle_reqv(self, data_bytes: bytes) -> bytes:
+        try:
+            data = json.loads(data_bytes)
+            path, _, parametrs = data['url'].rpartition('?')
 
+            parametrs = dict(parametr.split('=')
+                             for parametr in parametrs.split('&'))
 
-def dec(url: str, methods: list[str]):
-    path, parametrs = url.rpartition('/')
+            method = data['method']
+            reqv = request(parametrs, method)
 
-    """проверка аргументов methods"""
-    """проверка <><><>"""
-    """пример: (path, ?<name><abc><username>)"""
-    parametrs = frozenset(parametrs[1:-1].split('><'))
+            unique_path = (path, frozenset(parametrs))
+            if (unique_path in self.urls_paths and
+                    method in self.urls_paths[unique_path]):
+                response_content = self.urls_paths[unique_path][method](reqv)
+            else:
+                response_content = self.urls_paths[(
+                    path, frozenset({}))][method](reqv)
+            response_status = 200
 
-    def wrapper(func):
-        """проверка на наличие нужных параметров у функции"""
-        def inner():
-            kwargs = {
-                parametr: request.get_argument(parametr)
-                for parametr in parametrs
+            response = {
+                "content": response_content,
+                "status": response_status,
             }
 
-            response_html: str = func(**kwargs)
+            return bytes(json.dumps(response), "utf-8")
 
-            return response_html
+        except Exception:
+            return bytes(json.dumps({
+                "content": "Bad Request",
+                "status": 400,
+            }), "utf-8")
 
-        for method in methods:
-            Server.urls_paths[(path, frozenset)][method] = inner
+    def route(self, url: str, methods: list[str]):
+        path, _, parametrs = url.rpartition('/')
 
-    return wrapper
+        """проверка аргументов methods"""
+        """проверка <><><>"""
+        """пример: (path, ?<name><abc><username>)"""
+        parametrs = frozenset(parametrs[1:-1].split('><'))
+        if parametrs == {""}:
+            parametrs = frozenset()
+
+        def wrapper(func):
+            """проверка на наличие нужных параметров у функции"""
+            def inner(reqv: dict[str, str]):
+                kwargs = {
+                    parametr: reqv.get_argument(parametr)
+                    for parametr in parametrs
+                }
+
+                response_html: str = func(reqv, **kwargs)
+
+                return response_html
+
+            unique_path = (path, frozenset(parametrs))
+            for method in methods:
+                if unique_path not in Server.urls_paths:
+                    self.urls_paths[unique_path] = {}
+                self.urls_paths[unique_path][method] = inner
+
+        return wrapper
+
+
+# SuperServer.get({"url": "ya.ru/search?abc=1&cfd=2", "method": "post"})
+
+server = Server()
+
+
+@server.route("/self/<username>", methods=["post", "get"])
+def self_test(reqv, username):
+    if reqv.get_method() == "post":
+        return username[::-1] + "____POST"
+    return username[::-1] + "____GET"
+
+
+@server.route("/self/", methods=["delete"])
+def test_delete(reqv: request):
+    return reqv.get_argument("username") + "____DELETE"
+
+
+@server.route("/self/", methods=["patch"])
+def test_PATCH(reqv: request):
+    return "____PATCH"
+
+
+@server.route("/self/", methods=["patch"])
+def test_geeet(reqv: request):
+    return "____PATCH"
+
+
+print(server.handle_reqv(bytes(json.dumps({
+    "url": "/self?usernasme=petya",
+    "method": "post",
+}), "utf-8"))
+)
