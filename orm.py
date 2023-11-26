@@ -2,13 +2,6 @@ import sqlite3
 
 DB_NAME = 'example.db'
 
-# connection = sqlite3.connect(DB_NAME)
-# cursor = connection.cursor()
-# cursor.execute('''CREATE TABLE Person (id INTEGER, first_name TEXT, last_name TEXT, age INTEGER)''')
-# cursor.execute("INSERT INTO Person VALUES (1,'Mike','Nike',45)")
-# connection.commit()
-# connection.close()
-
 
 def create_table_orm(cls):
     cls.objects.create_table()
@@ -82,11 +75,19 @@ class BaseModel:
         connection.commit()
         connection.close()
 
-    def update(self, new_data):
-        pass
-
     def delete(self):
-        pass
+        connection = sqlite3.connect(DB_NAME)
+        cursor = connection.cursor()
+
+        table_name = self.model_class.__name__
+        value_pairs = [(key, value) for key, value in kwargs.items()]
+
+        where_clauses = ' AND '.join(f'{key} = ?' for key, value in value_pairs)
+        query = f'DELETE FROM {table_name} WHERE {where_clauses};'
+        values = tuple(value for key, value in value_pairs)
+        cursor.execute(query, values)
+        connection.commit()
+        connection.close()
 
 
 class Model(BaseModel):
@@ -116,6 +117,8 @@ class Person(Model):
 
 Person.objects.insert_sql(Person(1, 'Mike', 'Nike', 45))
 Person.objects.insert_sql(Person(2, "Rick", "Sonik", 10))
+print(Person.objects.select("last_name", "first_name"))
+Person.objects.delete(first_name="Mike")
 print(Person.objects.select("last_name", "first_name"))
 
 
