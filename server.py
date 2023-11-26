@@ -17,6 +17,8 @@ from typing import Callable
 import json
 
 
+
+
 class request:
     def __init__(self, params: list[str], method: str):
         self.params = params
@@ -75,7 +77,6 @@ class CPUWorker(Process):
         except (timeout, error):
             pass
 
-
 class Server:
     """
     TCP сервер, возвращающий ниаболее часто встречаемые слова в url запросах.
@@ -92,7 +93,7 @@ class Server:
             data['url'] = paths[1]
             data['method'] = paths[0]
             #data['token'] = paths[paths.index("Postman-Token:")]
-            print(data)
+            # print(data)
 
             path, _, parametrs = data['url'].rpartition('?')
 
@@ -100,11 +101,11 @@ class Server:
                              for parametr in parametrs.split('&'))
 
             method = str(data['method'])
-            print(method, 123213213213213213)
+            # print(method, 123213213213213213)
             reqv = request(parametrs, method)
 
         except Exception as e:
-            print(e, 1)
+            # print(e, 1)
             return bytes(json.dumps({
                 "content": "Bad Request",
                 "status": 400,
@@ -114,7 +115,7 @@ class Server:
             if (unique_path in self.urls_paths and
                     method in self.urls_paths[unique_path]):
                 response_content = self.urls_paths[unique_path][method](reqv)
-                print(response_content)
+                #print(response_content)
             else:
                 response_content = self.urls_paths[(
                     path, frozenset({}))][method](reqv)
@@ -129,8 +130,11 @@ class Server:
             "content": response_content,
             "status": response_status,
         }
-        print(response)
-        return json.dumps(response).encode()
+
+        res = json.dumps(response).encode()
+
+        print(res)
+        return res
 
     def route(self, url: str, methods: list[str]):
         path = url
@@ -253,8 +257,11 @@ class Server:
 if __name__ == '__main__':
     server = Server(workers_num=1)
 
-    @server.route(url='/req/<username>', methods=["POST", "GET"])
-    def test(reqv, username):
-        return f'rqv {username=}'
+    from template import get_template
+    @server.route(url='/req/<username><cat>', methods=["POST", "GET"])
+    def test(reqv, username, cat):
+        items = [{'name': "pizza", 'description': "good"}, {"name": "durt", "description": "bad"}]
+        print(f'Got {username=}, {cat=}')
+        return get_template('test.html', items=items)#f'rqv {username=}'
 
     asyncio.run(server.start())
