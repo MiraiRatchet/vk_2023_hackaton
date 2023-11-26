@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conditional HTML Example</title>
+</head>
+
+<body>
+    <h1>Conditional HTML Example</h1>
+
+    {%if user_logged_in %}
+    <p>Welcome, {{ username }}!</p>
+    {%endif%}
+
+    <div>
+        <h2>Product Details</h2>
+
+        {%if product_in_stock %}
+        <p>The product "{{ product_name }}" is in stock.</p>
+        {%endif%}
+
+        {%if second_product_in_stock %}
+        <p>The product "{{ second_product_name }}" is in stock.</p>
+        {%endif%}
+    </div>
+
+    <footer>
+        <p>&copy; 2023 Example Company</p>
+    </footer>
+</body>
+
+</html>
