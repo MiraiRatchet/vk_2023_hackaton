@@ -1,5 +1,6 @@
 import sqlite3
 
+
 class MyDatabase:
     def __init__(self, db_name):
         self.connection = sqlite3.connect(db_name)
@@ -15,7 +16,7 @@ class MyDatabase:
         self.connection.close()
 
 # Пример использования класса для создания таблицы
-db = MyDatabase('mydatabase.db')
+db = MyDatabase('example.db')
 fields = ["id INTEGER PRIMARY KEY", "name TEXT", "age INTEGER"]
 db.create_table('users', fields)
 db.close_connection()
