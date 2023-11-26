@@ -1,4 +1,4 @@
-from multiprocessing import Queue, Lock, Pipe, Value, Process, cpu_count
+from multiprocessing import Queue, Pipe, Value, Process, cpu_count
 from collections import Counter
 from socket import (
     socket,
@@ -12,31 +12,25 @@ from socket import (
 )
 from settings import HOST, PORT
 import asyncio
+import multiprocessing
 
-async def handle_client(conn, queue, lock):
-    loop = asyncio.get_event_loop()
+class DualLock:
+    async def __init__(self):
+        self.__async_lock = asyncio.Lock()
+        self.__multiprocessing_lock = multiprocessing.Lock()
 
-    request = b''
-    while True:
-        data = await loop.sock_recv(conn, 1024)
-        request += data
-        if not data or len(data) < 1024:
-            break
-        
-    if not request:
-        conn.close()
-        return
-    
-    with lock:
-        queue.put((
-            conn, request
-        ))
+    async def __enter__(self):
+        self.__async_lock.__enter__()
+        self.__multiprocessing_lock.__enter__()
+
+    async def __exit__(self, type, value, traceback):
+        self.__async_lock.__exit__(self, type, value, traceback)
+        self.__multiprocessing_lock.__exit__(self, type, value, traceback)
 
 class Server:
     """
     TCP сервер, возвращающий ниаболее часто встречаемые слова в url запросах.
     """
-
 
     class CPUWorker(Process):
         """
@@ -75,10 +69,9 @@ class Server:
             finally:
                 self.conn.close()
 
-    def __init__(self, workers_num, top_num):
-        if not isinstance(workers_num, int) or not\
-                isinstance(top_num, int) or workers_num < 1 or top_num < 1:
-            raise ValueError('workers_num and top_num must be more than 0')
+    def __init__(self, workers_num: int = cpu_count()):
+        if not (isinstance(workers_num, int) and workers_num < 1):
+            raise ValueError('workers_num be more than 0')
         self.workers_num = workers_num
 
     def stop(self):
@@ -97,6 +90,30 @@ class Server:
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 print(f'Unexpected exception while stopping: {exc}')
 
+    @staticmethod
+    async def __handle_client(
+        conn: socket, 
+        queue: multiprocessing.Queue, 
+        lock: multiprocessing.Lock,
+    ):
+        loop = asyncio.get_event_loop()
+
+        request = b''
+        while True:
+            data = await loop.sock_recv(conn, 1024)
+            request += data
+            if not data or len(data) < 1024:
+                break
+
+        if not request:
+            conn.close()
+            return
+
+        with lock:
+            queue.put((
+                conn, request
+            ))
+
     async def start(self):
         """
         Запускает сервер принимать входящие подключения.
@@ -106,10 +123,12 @@ class Server:
         self.server_socket.bind((HOST, PORT))
         self.server_socket.listen()
 
-        requests_queue = Queue()
-        queue_lock = Lock()
+        self.requests_queue = Queue()
+        self.queue_lock = DualLock()
         for _ in range(self.workers_num):
             self.CPUWorker(
+                self.queue_lock,
+                self.request_queue,
             )
 
         try:
@@ -117,8 +136,13 @@ class Server:
 
             while True:
                 conn, _ = await loop.sock_accept(self.server_socket)
-                #conn.settimeout(10)
-                loop.create_task(handle_client(conn, requests_queue, queue_lock))
+                loop.create_task(
+                    Server.__handle_client(
+                        conn, 
+                        self.requests_queue, 
+                        self.queue_lock
+                    )
+                )
 
         except (KeyboardInterrupt, OSError):
             pass
@@ -129,6 +153,5 @@ class Server:
 
 
 if __name__ == '__main__':
-    args = args_parse().parse_args()
-    server = Server(args.workers_num, args.top_num)
-    server.start()
+    server = Server()
+    asyncio.run(server.start())
