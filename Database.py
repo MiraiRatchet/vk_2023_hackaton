@@ -10,17 +10,16 @@ class MyDatabase:
         # Подготавливаем SQL запрос для создания таблицы на основе переданных полей
         sql_query = f"CREATE TABLE {table_name} ({', '.join(fields)})"
         self.cursor.execute(sql_query)
+        self.connection.execute(
+            "INSERT INTO users (name, age) VALUES ('Alice', 25)"
+        )
+        self.connection.execute(
+            "INSERT INTO users (name, age) VALUES ('Bob', 30)"
+        )
         self.connection.commit()
 
     def execute(self, query):
-        return self.cursor.execute(query)
+        return self.connection.execute(query)
 
     def close_connection(self):
         self.connection.close()
-
-
-# # Пример использования класса для создания таблицы
-# db = MyDatabase("example.db")
-# fields = ["id INTEGER PRIMARY KEY", "name TEXT", "age INTEGER"]
-# db.create_table("users", fields)
-# db.close_connection()
