@@ -1,4 +1,4 @@
-from multiprocessing import Queue, Pipe, Value, Process, cpu_count
+from multiprocessing import Queue, Pipe, Value, Process, cpu_count, Lock
 from collections import Counter
 from socket import (
     socket,
@@ -12,20 +12,11 @@ from socket import (
 )
 from settings import HOST, PORT
 import asyncio
-import multiprocessing
 
-class DualLock:
-    async def __init__(self):
-        self.__async_lock = asyncio.Lock()
-        self.__multiprocessing_lock = multiprocessing.Lock()
 
-    async def __enter__(self):
-        self.__async_lock.__enter__()
-        self.__multiprocessing_lock.__enter__()
+def router(request: bytes) -> bytes:
+    pass
 
-    async def __exit__(self, type, value, traceback):
-        self.__async_lock.__exit__(self, type, value, traceback)
-        self.__multiprocessing_lock.__exit__(self, type, value, traceback)
 
 class Server:
     """
@@ -36,38 +27,20 @@ class Server:
         """
         Воркер для каждого нового TCP соединения.
         """
-        def __init__(self, queue_lock, global_request_queue):
+        def __init__(self, global_request_queue):
             super().__init__()
-            self.queue_lock = queue_lock
             self.request_queue = global_request_queue
 
         def run(self):
             try:
                 while True:
-                    recieved_data = b''
-                    while True:
-                        data = self.conn.recv(1024)
-                        recieved_data = recieved_data + data
-                        if not data or len(data) < 1024:
-                            break
+                    for (conn, request) in iter(self.request_queue.get, None):
+                        res = router(request)
+                        conn.send(res)
 
-                    if not recieved_data:
-                        raise error
-                    
-                    url = recieved_data.decode('utf-8')
-                    pipe_client, pipe_worker = Pipe()
-                    
-                    with self.queue_lock:
-                        self.request_queue.put((url, pipe_worker))
-                    
-                    res = pipe_client.recv()
-                    pipe_client.close()
-                    self.conn.send(res.encode('utf-8'))
-            
             except (timeout, error):
                 pass
-            finally:
-                self.conn.close()
+
 
     def __init__(self, workers_num: int = cpu_count()):
         if not (isinstance(workers_num, int) and workers_num < 1):
@@ -93,8 +66,7 @@ class Server:
     @staticmethod
     async def __handle_client(
         conn: socket, 
-        queue: multiprocessing.Queue, 
-        lock: multiprocessing.Lock,
+        queue: Queue,
     ):
         loop = asyncio.get_event_loop()
 
@@ -109,10 +81,9 @@ class Server:
             conn.close()
             return
 
-        with lock:
-            queue.put((
-                conn, request
-            ))
+        queue.put((
+            conn, request
+        ))
 
     async def start(self):
         """
@@ -124,7 +95,6 @@ class Server:
         self.server_socket.listen()
 
         self.requests_queue = Queue()
-        self.queue_lock = DualLock()
         for _ in range(self.workers_num):
             self.CPUWorker(
                 self.queue_lock,
@@ -139,8 +109,7 @@ class Server:
                 loop.create_task(
                     Server.__handle_client(
                         conn, 
-                        self.requests_queue, 
-                        self.queue_lock
+                        self.requests_queue,
                     )
                 )
 
