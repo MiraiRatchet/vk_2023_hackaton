@@ -1,5 +1,4 @@
 from multiprocessing import Queue, Pipe, Value, Process, cpu_count, Lock
-from collections import Counter
 from socket import (
     socket,
     AF_INET,
@@ -10,12 +9,57 @@ from socket import (
     SO_REUSEADDR,
     SHUT_RDWR,
 )
-from settings import HOST, PORT
+from threading import Thread
 import asyncio
 
 
 def router(request: bytes) -> bytes:
-    pass
+    return request
+
+
+class TreadWorker(Thread):
+    """
+    Воркер, в своём потоке запускает маршрутизатор.
+    """
+    def __init__(self, conn, request):
+        print('Thread')
+        super().__init__()
+        self.conn = conn
+        self.request = request
+
+    def run(self):
+        print('Thread run')
+        res = b''
+        try:
+            res = router(self.request)  # bytes
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            print(exc)
+        finally:
+            self.conn.send(res)
+            self.conn.close()
+
+
+class CPUWorker(Process):
+    """
+    Воркер для каждого нового TCP соединения.
+    """
+    def __init__(self, global_request_queue):
+        print('CPU')
+        super().__init__()
+        self.request_queue = global_request_queue
+
+    def run(self):
+        print('CPU run')
+        try:
+            while True:
+                for (conn, request) in iter(self.request_queue.get, None):
+                    print('CPU conn recive')
+                    TreadWorker(
+                        conn,
+                        request,
+                    ).start()
+        except (timeout, error):
+            pass
 
 
 class Server:
@@ -23,29 +67,12 @@ class Server:
     TCP сервер, возвращающий ниаболее часто встречаемые слова в url запросах.
     """
 
-    class CPUWorker(Process):
-        """
-        Воркер для каждого нового TCP соединения.
-        """
-        def __init__(self, global_request_queue):
-            super().__init__()
-            self.request_queue = global_request_queue
-
-        def run(self):
-            try:
-                while True:
-                    for (conn, request) in iter(self.request_queue.get, None):
-                        res = router(request)
-                        conn.send(res)
-                        conn.close()
-
-            except (timeout, error):
-                pass
-
-
-    def __init__(self, workers_num: int = cpu_count()):
-        if not (isinstance(workers_num, int) and workers_num < 1):
+    def __init__(self, host = 'localhost', port=8080, workers_num: int = cpu_count()):
+        print(f'{host=}, {port=}, {workers_num=}')
+        if not isinstance(workers_num, int) or workers_num < 1:
             raise ValueError('workers_num be more than 0')
+        self.host = host
+        self.port = port
         self.workers_num = workers_num
 
     def stop(self):
@@ -54,7 +81,7 @@ class Server:
         """
         if self.server_socket:
             for _ in range(self.workers_num):
-                self.request_queue.put(None)
+                self.requests_queue.put(None)
             try:
                 self.server_socket.shutdown(SHUT_RDWR)
                 self.server_socket.close()
@@ -92,14 +119,13 @@ class Server:
         """
         self.server_socket = socket(AF_INET, SOCK_STREAM)
         self.server_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-        self.server_socket.bind((HOST, PORT))
+        self.server_socket.bind((self.host, self.port))
         self.server_socket.listen()
 
         self.requests_queue = Queue()
         for _ in range(self.workers_num):
-            self.CPUWorker(
-                self.queue_lock,
-                self.request_queue,
+            CPUWorker(
+                self.requests_queue,
             )
 
         try:
@@ -107,6 +133,7 @@ class Server:
 
             while True:
                 conn, _ = await loop.sock_accept(self.server_socket)
+                print('Conn')
                 loop.create_task(
                     Server.__handle_client(
                         conn, 
