@@ -66,22 +66,22 @@ def get_sub_loop(loop_content, param_list, param):
     return loop_result
 
 
-def parse_html_with_if_condition(html, parameters):
-    pattern_if = re.compile(r'{%if\s(.*?)%}(.*?){%endif%}', re.DOTALL)
+def parse_html_with_conditions(html, parameters):
+    # Используем регулярные выражения для поиска блоков if и endif
+    pattern_if = re.compile(r'{%if\s(.*?)%}(.*?){%(else|endif)%}', re.DOTALL)
+    pattern_all_if = re.compile(r'{%if(.*?){%endif%}', re.DOTALL)
+    pattern_else = re.compile(r'{%else%}(.*?){%endif%}', re.DOTALL)
 
-    def parse_if_block(match):
-        condition = match.group(1)
-        block_content = match.group(2)
-
-        # Проверяем выполнение условия
-        if eval(condition, parameters):
-            # Применяем функцию подстановки значений к блоку внутри if
-            return substitution(block_content, parameters)
-        else:
-            return ''
-
-            # Применяем функцию parse_if_block ко всем блокам if в HTML
-
-    html = re.sub(pattern_if, parse_if_block, html)
-
+    match = pattern_if.search(html)
+    if eval(match.group(1), parameters):
+        replacement_text = match.group(2)
+        modified_html = pattern_all_if.sub(replacement_text, html)
+        modified_html = parse_html_simple(modified_html, parameters)
+        return modified_html
+    match = pattern_else.search(html)
+    if match:
+        replacement_text = match.group(1)
+        modified_html = pattern_all_if.sub(replacement_text, html)
+        modified_html = parse_html_simple(modified_html, parameters)
+        return modified_html
     return html
