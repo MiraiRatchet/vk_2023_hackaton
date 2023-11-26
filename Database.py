@@ -12,11 +12,15 @@ class MyDatabase:
         self.cursor.execute(sql_query)
         self.connection.commit()
 
+    def execute(self, query):
+        return self.cursor.execute(query)
+
     def close_connection(self):
         self.connection.close()
 
-# Пример использования класса для создания таблицы
-db = MyDatabase('example.db')
-fields = ["id INTEGER PRIMARY KEY", "name TEXT", "age INTEGER"]
-db.create_table('users', fields)
-db.close_connection()
+
+# # Пример использования класса для создания таблицы
+# db = MyDatabase("example.db")
+# fields = ["id INTEGER PRIMARY KEY", "name TEXT", "age INTEGER"]
+# db.create_table("users", fields)
+# db.close_connection()
