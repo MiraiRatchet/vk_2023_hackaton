@@ -7,7 +7,6 @@ class MyDatabase:
         self.cursor = self.connection.cursor()
 
     def create_table(self, table_name, fields):
-        # Подготавливаем SQL запрос для создания таблицы на основе переданных полей
         sql_query = f"CREATE TABLE {table_name} ({', '.join(fields)})"
         self.cursor.execute(sql_query)
         self.connection.execute(
