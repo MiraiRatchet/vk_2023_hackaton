@@ -1,18 +1,31 @@
-from typing import Callable
+from typing import Callable, Any
 
 import json
 
 
 class request:
-    def __init__(self, params: list[str], method: str):
-        self.params = params
-        self.method = method
+    __user_data: dict[str, Any] = {}
+
+    def __init__(self, params: list[str], method: str, token: str):
+        self.__params = params
+        self.__method = method
+        self.__token = token
 
     def get_argument(self, param: str) -> str:
-        return self.params[param]
+        return self.__params[param]
 
     def get_method(self) -> str:
-        return self.method
+        return self.__method
+
+    def get_user_data(self):
+        # if self.token == "":
+        #     return {}
+        if self.__token not in type(self).__user_data:
+            type(self).__user_data[self.__token] = {}
+        return type(self).__user_data[self.__token]
+
+    def set_user_data(self, user_data: Any):
+        type(self).__user_data[self.__token] = user_data
 
 
 class Server:
@@ -22,15 +35,20 @@ class Server:
     def handle_reqv(self, data_bytes: bytes) -> bytes:
         try:
             data = json.loads(data_bytes)
-            path, _, parametrs = data['url'].rpartition('?')
-
-            parametrs = dict(parametr.split('=')
-                             for parametr in parametrs.split('&'))
+            path = data["url"]
+            if "?" in path:
+                path, _, parametrs = path.rpartition('?')
+                parametrs = dict(parametr.split('=')
+                                 for parametr in parametrs.split('&'))
+            else:
+                parametrs = {}
 
             method = data['method']
-            reqv = request(parametrs, method)
+            token = data['token']
+            reqv = request(parametrs, method, token)
 
-        except Exception:
+        except Exception as e:
+            print(e)
             return bytes(json.dumps({
                 "content": "Bad Request",
                 "status": 400,
@@ -42,8 +60,9 @@ class Server:
                 response_content = self.urls_paths[unique_path][method](reqv)
             else:
                 response_content = self.urls_paths[(
-                    path, frozenset({}))][method](reqv)
-        except Exception:
+                    path, frozenset())][method](reqv)
+        except Exception as e:
+            print(e)
             return bytes(json.dumps({
                 "content": "Not Found",
                 "status": 404,
@@ -90,7 +109,7 @@ class Server:
 
 # SuperServer.get({"url": "ya.ru/search?abc=1&cfd=2", "method": "post"})
 
-# server = Server()
+server = Server()
 
 
 # @server.route("/self/<username>", methods=["post", "get"])
@@ -120,6 +139,18 @@ class Server:
 #     return "____POST_empty"
 
 
+# @server.route("/self/", methods=["post", "get"])
+# def self_test(reqv: request):
+#     if reqv.get_method() == "post":
+#         data = reqv.get_user_data()
+#         data["username"] = reqv.get_argument("username") + "OXOXOXXOXOXOX"
+#         reqv.set_user_data(data)
+#         # print(reqv.get_user_data(), 123)
+#         return "____POSTEDDDDD"
+#     data = reqv.get_user_data()
+#     # print(data)
+#     return data["username"] + "____GET"
+
 # print(server.handle_reqv(bytes(json.dumps({
 #     "url": "? ? ?",
 #     "method": "post",
@@ -134,4 +165,28 @@ class Server:
 # print(server.handle_reqv(bytes(json.dumps({
 #     "url": "/self?username=HAHAHHAHA",
 #     "method": "get",
+# }), "utf-8")))  # b'{"content": "AHAHHAHAH____GET", "status": 200}'
+
+# print(server.handle_reqv(bytes(json.dumps({
+#     "url": "/self?username=APAPAPAPA",
+#     "method": "post",
+#     "token": "123123123213",
+# }), "utf-8")))  # b'{"content": "AHAHHAHAH____GET", "status": 200}'
+
+# print(server.handle_reqv(bytes(json.dumps({
+#     "url": "/self?username=asdasdasdsdasdasdadda",
+#     "method": "post",
+#     "token": "))))))))",
+# }), "utf-8")))  # b'{"content": "AHAHHAHAH____GET", "status": 200}'
+
+# print(server.handle_reqv(bytes(json.dumps({
+#     "url": "/self",
+#     "method": "get",
+#     "token": "123123123213",
+# }), "utf-8")))  # b'{"content": "AHAHHAHAH____GET", "status": 200}'
+
+# print(server.handle_reqv(bytes(json.dumps({
+#     "url": "/self",
+#     "method": "get",
+#     "token": "))))))))",
 # }), "utf-8")))  # b'{"content": "AHAHHAHAH____GET", "status": 200}'
