@@ -53,11 +53,12 @@ class CPUWorker(Process):
         try:
             while True:
                 for (conn, request) in iter(self.request_queue.get, None):
-                    print('CPU conn recive')
+                    print('CPU conn receive')
                     TreadWorker(
                         conn,
                         request,
                     ).start()
+
         except (timeout, error):
             pass
 
@@ -92,28 +93,31 @@ class Server:
                 print(f'Unexpected exception while stopping: {exc}')
 
     @staticmethod
-    async def __handle_client(
+    def __handle_client(
         conn: socket, 
         queue: Queue,
+        lock
     ):
-        loop = asyncio.get_event_loop()
-
+        print('listening conncection')
+    
         request = b''
         while True:
-            data = await loop.sock_recv(conn, 1024)
+            data = conn.recv(1024)
             request += data
-            if not data or len(data) < 1024:
-                break
+            break
 
         if not request:
             conn.close()
             return
 
-        queue.put((
-            conn, request
-        ))
+        print('Got connection')
+        with lock:
+            queue.put((
+                conn, request
+            ))
+        print("Request is in place")
 
-    async def start(self):
+    def start(self):
         """
         Запускает сервер принимать входящие подключения.
         """
@@ -123,22 +127,20 @@ class Server:
         self.server_socket.listen()
 
         self.requests_queue = Queue()
+        lock = Lock()
         for _ in range(self.workers_num):
             CPUWorker(
                 self.requests_queue,
             )
 
         try:
-            loop = asyncio.get_event_loop()
-
             while True:
-                conn, _ = await loop.sock_accept(self.server_socket)
+                conn, _ = self.server_socket.accept()
                 print('Conn')
-                loop.create_task(
-                    Server.__handle_client(
-                        conn, 
-                        self.requests_queue,
-                    )
+                Server.__handle_client(
+                    conn, 
+                    self.requests_queue,
+                    lock,
                 )
 
         except (KeyboardInterrupt, OSError):
