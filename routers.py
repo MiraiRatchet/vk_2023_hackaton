@@ -85,33 +85,33 @@ class Server:
 
 # SuperServer.get({"url": "ya.ru/search?abc=1&cfd=2", "method": "post"})
 
-server = Server()
+# server = Server()
 
 
-@server.route("/self/<username>", methods=["post", "get"])
-def self_test(reqv, username):
-    if reqv.get_method() == "post":
-        return username[::-1] + "____POST"
-    return username[::-1] + "____GET"
+# @server.route("/self/<username>", methods=["post", "get"])
+# def self_test(reqv, username):
+#     if reqv.get_method() == "post":
+#         return username[::-1] + "____POST"
+#     return username[::-1] + "____GET"
 
 
-@server.route("/self/", methods=["delete"])
-def test_delete(reqv: request):
-    return reqv.get_argument("username") + "____DELETE"
+# @server.route("/self/", methods=["delete"])
+# def test_delete(reqv: request):
+#     return reqv.get_argument("username") + "____DELETE"
 
 
-@server.route("/self/", methods=["patch"])
-def test_PATCH(reqv: request):
-    return "____PATCH"
+# @server.route("/self/", methods=["patch"])
+# def test_PATCH(reqv: request):
+#     return "____PATCH"
 
 
-@server.route("/self/", methods=["patch"])
-def test_geeet(reqv: request):
-    return "____PATCH"
+# @server.route("/self/", methods=["patch"])
+# def test_geeet(reqv: request):
+#     return "____PATCH"
 
 
-print(server.handle_reqv(bytes(json.dumps({
-    "url": "/self?usernasme=petya",
-    "method": "post",
-}), "utf-8"))
-)
+# print(server.handle_reqv(bytes(json.dumps({
+#     "url": "/self?usernasme=petya",
+#     "method": "post",
+# }), "utf-8"))
+# )
